@@ -43,15 +43,6 @@ jobs:
           git fetch --tags --force
 
           LATEST_TAG="$(git tag -l 'v*' --sort=-v:refname | head -n 1)"
-          if [ -z "$LATEST_TAG" ]; then
-            LATEST_VERSION="1.0"
-          else
-            LATEST_VERSION="${LATEST_TAG#v}"
-          fi
-
-          MAJOR="${LATEST_VERSION%%.*}"
-          MINOR="${LATEST_VERSION##*.}"
-
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             BUMP_TYPE="${{ github.event.inputs.bump }}"
           else
@@ -62,6 +53,17 @@ jobs:
               BUMP_TYPE="minor"
             fi
           fi
+
+          if [ -z "$LATEST_TAG" ]; then
+            NEXT_VERSION="1.0"
+            echo "bump_type=$BUMP_TYPE" >> "$GITHUB_OUTPUT"
+            echo "version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          LATEST_VERSION="${LATEST_TAG#v}"
+          MAJOR="${LATEST_VERSION%%.*}"
+          MINOR="${LATEST_VERSION##*.}"
 
           if [ "$BUMP_TYPE" = "major" ]; then
             NEXT_MAJOR=$((MAJOR + 1))
