@@ -28,6 +28,8 @@ jobs:
     outputs:
       version: ${{ steps.bump.outputs.version }}
       bump_type: ${{ steps.bump.outputs.bump_type }}
+      tag_name: ${{ steps.bump.outputs.tag_name }}
+      tag_already_exists: ${{ steps.bump.outputs.tag_already_exists }}
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -41,6 +43,16 @@ jobs:
           set -euo pipefail
 
           git fetch --tags --force
+
+          EXISTING_TAG_ON_HEAD="$(git tag --points-at HEAD -l 'v*' --sort=-v:refname | head -n 1)"
+          if [ -n "$EXISTING_TAG_ON_HEAD" ]; then
+            EXISTING_VERSION="${EXISTING_TAG_ON_HEAD#v}"
+            echo "bump_type=reuse" >> "$GITHUB_OUTPUT"
+            echo "version=$EXISTING_VERSION" >> "$GITHUB_OUTPUT"
+            echo "tag_name=$EXISTING_TAG_ON_HEAD" >> "$GITHUB_OUTPUT"
+            echo "tag_already_exists=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
           LATEST_TAG="$(git tag -l 'v*' --sort=-v:refname | head -n 1)"
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
@@ -58,6 +70,8 @@ jobs:
             NEXT_VERSION="1.0"
             echo "bump_type=$BUMP_TYPE" >> "$GITHUB_OUTPUT"
             echo "version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
+            echo "tag_name=v$NEXT_VERSION" >> "$GITHUB_OUTPUT"
+            echo "tag_already_exists=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -77,18 +91,15 @@ jobs:
 
           echo "bump_type=$BUMP_TYPE" >> "$GITHUB_OUTPUT"
           echo "version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Create and push git tag
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag "v${{ steps.bump.outputs.version }}"
-          git push origin "v${{ steps.bump.outputs.version }}"
+          echo "tag_name=v$NEXT_VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag_already_exists=false" >> "$GITHUB_OUTPUT"
 
   build-and-push:
     needs: prepare-version
     runs-on: ubuntu-latest
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
     strategy:
       fail-fast: false
       matrix:
@@ -109,17 +120,31 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Validate Docker Hub secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${DOCKERHUB_USERNAME:-}" ]; then
+            echo "::error title=Missing secret DOCKERHUB_USERNAME::Repository secret DOCKERHUB_USERNAME is empty or unavailable. Go to Settings > Secrets and variables > Actions and create it with your Docker Hub username."
+            exit 1
+          fi
+          if [ -z "${DOCKERHUB_TOKEN:-}" ]; then
+            echo "::error title=Missing secret DOCKERHUB_TOKEN::Repository secret DOCKERHUB_TOKEN is empty or unavailable. Go to Settings > Secrets and variables > Actions and create it with a valid Docker Hub access token."
+            exit 1
+          fi
+          echo "Docker Hub secrets detected for user ${DOCKERHUB_USERNAME}."
+
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ env.DOCKERHUB_TOKEN }}
 
       - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.image_name }}
+          images: ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.image_name }}
           tags: |
             type=raw,value=${{ needs.prepare-version.outputs.version }}
             type=raw,value=latest
@@ -138,3 +163,28 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+  create-tag:
+    needs:
+      - prepare-version
+      - build-and-push
+    if: ${{ needs.prepare-version.outputs.tag_already_exists != 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create and push git tag
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+          if git rev-parse "${{ needs.prepare-version.outputs.tag_name }}" >/dev/null 2>&1; then
+            echo "Tag ${{ needs.prepare-version.outputs.tag_name }} already exists, skipping."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "${{ needs.prepare-version.outputs.tag_name }}"
+          git push origin "${{ needs.prepare-version.outputs.tag_name }}"
