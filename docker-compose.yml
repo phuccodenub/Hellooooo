@@ -1,0 +1,43 @@
+services:
+  db:
+    image: postgres:15
+    container_name: intro-db
+    environment:
+      POSTGRES_DB: intro
+      POSTGRES_USER: intro_user
+      POSTGRES_PASSWORD: intro_pass
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U intro_user -d intro"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    image: phucdeptrai29/nguyensyphuc-backend:1.1
+    container_name: intro-backend
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/intro
+      SPRING_DATASOURCE_USERNAME: intro_user
+      SPRING_DATASOURCE_PASSWORD: intro_pass
+      APP_CORS_ALLOWED_ORIGIN: http://localhost:3000
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    image: phucdeptrai29/nguyensyphuc-frontend:1.1
+    container_name: intro-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

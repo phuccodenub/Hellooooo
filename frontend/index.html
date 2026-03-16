@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trang Gioi Thieu - Nguyen Sy Phuc</title>
+  <style>
+    :root {
+      --bg-start: #fff1df;
+      --bg-end: #ffe2be;
+      --ink: #1b1b1b;
+      --card: rgba(255, 255, 255, 0.85);
+      --accent: #d45d00;
+      --accent-soft: #ff9c52;
+      --muted: #5f5f5f;
+      --border: rgba(0, 0, 0, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+      color: var(--ink);
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 15% 20%, #ffffff99 0, #ffffff00 45%),
+        radial-gradient(circle at 80% 80%, #ffffffcc 0, #ffffff00 42%),
+        linear-gradient(140deg, var(--bg-start), var(--bg-end));
+      display: grid;
+      place-items: center;
+      padding: 20px;
+    }
+
+    .profile-card {
+      width: min(720px, 100%);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      box-shadow: 0 28px 70px rgba(0, 0, 0, 0.18);
+      backdrop-filter: blur(6px);
+      padding: 28px;
+      transform: translateY(12px);
+      opacity: 0;
+      animation: reveal 650ms ease forwards;
+    }
+
+    @keyframes reveal {
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+
+    .title-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      border-bottom: 1px dashed var(--border);
+      padding-bottom: 14px;
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.6rem, 2.2vw, 2.2rem);
+      letter-spacing: 0.02em;
+    }
+
+    .subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-style: italic;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .item {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px;
+      background: #ffffffbb;
+    }
+
+    .label {
+      margin: 0 0 6px;
+      color: var(--muted);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .value {
+      margin: 0;
+      font-weight: 700;
+      line-height: 1.45;
+    }
+
+    .full {
+      grid-column: 1 / -1;
+    }
+
+    .quote {
+      margin-top: 14px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-soft));
+      color: #fff;
+      padding: 16px;
+      font-weight: 600;
+    }
+
+    .status {
+      margin-top: 14px;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    .error {
+      color: #9b111e;
+      font-weight: 600;
+    }
+
+    @media (max-width: 640px) {
+      .profile-card { padding: 20px; }
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="profile-card">
+    <div class="title-row">
+      <h1 id="name">Dang tai du lieu...</h1>
+      <p class="subtitle" id="nickname"></p>
+    </div>
+
+    <section class="grid" id="profile-grid" hidden>
+      <article class="item">
+        <p class="label">Tuoi</p>
+        <p class="value" id="age"></p>
+      </article>
+      <article class="item">
+        <p class="label">Nganh hoc</p>
+        <p class="value" id="major"></p>
+      </article>
+      <article class="item full">
+        <p class="label">Truong</p>
+        <p class="value" id="school"></p>
+      </article>
+      <article class="item full">
+        <p class="label">So thich</p>
+        <p class="value" id="hobby"></p>
+      </article>
+      <div class="quote" id="quote"></div>
+    </section>
+
+    <p class="status" id="status">Dang ket noi backend...</p>
+  </main>
+
+  <script>
+    async function loadProfile() {
+      const statusEl = document.getElementById('status');
+      const gridEl = document.getElementById('profile-grid');
+
+      try {
+        const response = await fetch('/api/profile');
+        if (!response.ok) {
+          throw new Error('API response not OK: ' + response.status);
+        }
+
+        const data = await response.json();
+
+        document.getElementById('name').textContent = data.name;
+        document.getElementById('nickname').textContent = 'aka ' + data.nickname;
+        document.getElementById('age').textContent = data.age;
+        document.getElementById('major').textContent = data.major;
+        document.getElementById('school').textContent = data.school;
+        document.getElementById('hobby').textContent = data.hobby;
+        document.getElementById('quote').textContent = data.quote;
+
+        gridEl.hidden = false;
+        statusEl.textContent = 'Da dong bo du lieu tu backend thanh cong.';
+      } catch (error) {
+        statusEl.classList.add('error');
+        statusEl.textContent = 'Khong the lay du lieu profile. Vui long kiem tra backend/db.';
+        document.getElementById('name').textContent = 'Khong tai duoc du lieu';
+        console.error(error);
+      }
+    }
+
+    loadProfile();
+  </script>
+</body>
+</html>

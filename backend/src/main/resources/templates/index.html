@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Giới thiệu bản thân</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            animation: fadeIn 0.8s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-30px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .avatar {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+            margin: 0 auto 20px;
+        }
+
+        h1 {
+            color: #333;
+            font-size: 2rem;
+            margin-bottom: 5px;
+        }
+
+        .nickname {
+            color: #764ba2;
+            font-size: 1rem;
+            font-style: italic;
+            margin-bottom: 25px;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 25px;
+            text-align: left;
+        }
+
+        .info-item {
+            background: #f8f9ff;
+            border-radius: 10px;
+            padding: 15px;
+            border-left: 4px solid #667eea;
+        }
+
+        .info-item .label {
+            font-size: 0.75rem;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+        }
+
+        .info-item .value {
+            font-size: 0.95rem;
+            color: #333;
+            font-weight: 600;
+        }
+
+        .hobby-item {
+            grid-column: 1 / -1;
+        }
+
+        .quote {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border-radius: 12px;
+            padding: 18px;
+            font-size: 1rem;
+            font-style: italic;
+            line-height: 1.5;
+        }
+
+        .tech-badge {
+            display: inline-block;
+            background: #e8f4fd;
+            color: #667eea;
+            border-radius: 20px;
+            padding: 5px 14px;
+            font-size: 0.8rem;
+            margin-top: 20px;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="avatar">😎</div>
+        <h1 th:text="${name}">Nguyễn Sỹ Phúc</h1>
+        <p class="nickname" th:text="'aka ' + ${nickname}">aka Phúc</p>
+
+        <div class="info-grid">
+            <div class="info-item">
+                <div class="label">🎂 Tuổi</div>
+                <div class="value" th:text="${age}">21</div>
+            </div>
+            <div class="info-item">
+                <div class="label">📚 Ngành học</div>
+                <div class="value" th:text="${major}">CNPM</div>
+            </div>
+            <div class="info-item hobby-item">
+                <div class="label">🏫 Trường</div>
+                <div class="value" th:text="${school}">Trường Đại Học Công Nghệ TP.HCM (HUTECH)</div>
+            </div>
+            <div class="info-item hobby-item">
+                <div class="label">🎮 Sở thích</div>
+                <div class="value" th:text="${hobby}">Lập trình</div>
+            </div>
+        </div>
+
+        <div class="quote" th:text="${quote}">
+            "Code mỗi ngày, tiến bộ mỗi ngày! 🚀"
+        </div>
+
+        <div class="tech-badge">☕ Powered by Spring Boot &amp; Docker</div>
+    </div>
+</body>
+</html>
