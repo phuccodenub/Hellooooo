@@ -200,9 +200,11 @@ jobs:
     if: ${{ always() && needs.build-and-push.result == 'success' && (needs.create-tag.result == 'success' || needs.create-tag.result == 'skipped') }}
     env:
       DEPLOY_URL: ${{ secrets.DEPLOY_URL }}
-      ALLOW_EMPTY_REPLY: "true"
-      ALLOW_ASYNC_TIMEOUT: "true"
+      BACKEND_HEALTHCHECK_URL: ${{ secrets.BACKEND_HEALTHCHECK_URL }}
+      FRONTEND_HEALTHCHECK_URL: ${{ secrets.FRONTEND_HEALTHCHECK_URL }}
       IMAGE_TAG: latest
+      HEALTHCHECK_MAX_ATTEMPTS: "30"
+      HEALTHCHECK_INTERVAL_SECONDS: "10"
     steps:
       - name: Validate deploy webhook secret
         shell: bash
@@ -210,6 +212,14 @@ jobs:
           set -euo pipefail
           if [ -z "${DEPLOY_URL:-}" ]; then
             echo "::error title=Missing secret DEPLOY_URL::Repository secret DEPLOY_URL is empty or unavailable. Go to Settings > Secrets and variables > Actions and create it with your deploy webhook URL."
+            exit 1
+          fi
+          if [ -z "${BACKEND_HEALTHCHECK_URL:-}" ]; then
+            echo "::error title=Missing secret BACKEND_HEALTHCHECK_URL::Set BACKEND_HEALTHCHECK_URL to a public backend health endpoint, for example https://your-domain/actuator/health or https://your-domain/api/profile."
+            exit 1
+          fi
+          if [ -z "${FRONTEND_HEALTHCHECK_URL:-}" ]; then
+            echo "::error title=Missing secret FRONTEND_HEALTHCHECK_URL::Set FRONTEND_HEALTHCHECK_URL to a public frontend URL, for example https://your-frontend-domain/."
             exit 1
           fi
 
@@ -227,14 +237,9 @@ jobs:
 
           if [ "$CURL_EXIT" -ne 0 ]; then
             echo "curl exit code: $CURL_EXIT"
-            if [ "$CURL_EXIT" -eq 28 ] && [ "${ALLOW_ASYNC_TIMEOUT}" = "true" ]; then
-              echo "Webhook timed out without response (curl 28)."
-              echo "Treating as success because webhook may be fire-and-forget."
-              exit 0
-            fi
-            if [ "$CURL_EXIT" -eq 52 ] && [ "${ALLOW_EMPTY_REPLY}" = "true" ]; then
-              echo "Server closed connection without response body (curl 52)."
-              echo "Treating as success because webhook may be fire-and-forget."
+            if [ "$CURL_EXIT" -eq 28 ] || [ "$CURL_EXIT" -eq 52 ]; then
+              echo "Webhook did not return a full response (exit ${CURL_EXIT})."
+              echo "Continuing to health-check phase to verify real deployment."
               exit 0
             fi
             echo "::error title=Webhook call failed::curl failed before receiving HTTP status from DEPLOY_URL."
@@ -261,7 +266,7 @@ jobs:
             exit 1
           fi
 
-          echo "Deploy thanh cong."
+          echo "Webhook backend accepted."
 
       - name: Trien khai frontend len DevOps Classroom
         shell: bash
@@ -277,14 +282,9 @@ jobs:
 
           if [ "$CURL_EXIT" -ne 0 ]; then
             echo "curl exit code: $CURL_EXIT"
-            if [ "$CURL_EXIT" -eq 28 ] && [ "${ALLOW_ASYNC_TIMEOUT}" = "true" ]; then
-              echo "Webhook timed out without response (curl 28)."
-              echo "Treating as success because webhook may be fire-and-forget."
-              exit 0
-            fi
-            if [ "$CURL_EXIT" -eq 52 ] && [ "${ALLOW_EMPTY_REPLY}" = "true" ]; then
-              echo "Server closed connection without response body (curl 52)."
-              echo "Treating as success because webhook may be fire-and-forget."
+            if [ "$CURL_EXIT" -eq 28 ] || [ "$CURL_EXIT" -eq 52 ]; then
+              echo "Webhook did not return a full response (exit ${CURL_EXIT})."
+              echo "Continuing to health-check phase to verify real deployment."
               exit 0
             fi
             echo "::error title=Webhook call failed::curl failed before receiving HTTP status from DEPLOY_URL."
@@ -311,4 +311,34 @@ jobs:
             exit 1
           fi
 
-          echo "Deploy thanh cong."
+          echo "Webhook frontend accepted."
+
+      - name: Verify backend health
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 "${HEALTHCHECK_MAX_ATTEMPTS}"); do
+            echo "Backend health check attempt ${i}/${HEALTHCHECK_MAX_ATTEMPTS}: ${BACKEND_HEALTHCHECK_URL}"
+            if curl -fsS --connect-timeout 5 --max-time 10 "${BACKEND_HEALTHCHECK_URL}" > /dev/null; then
+              echo "Backend is healthy."
+              exit 0
+            fi
+            sleep "${HEALTHCHECK_INTERVAL_SECONDS}"
+          done
+          echo "::error title=Backend verify failed::Backend health endpoint did not become healthy in time."
+          exit 1
+
+      - name: Verify frontend health
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 "${HEALTHCHECK_MAX_ATTEMPTS}"); do
+            echo "Frontend health check attempt ${i}/${HEALTHCHECK_MAX_ATTEMPTS}: ${FRONTEND_HEALTHCHECK_URL}"
+            if curl -fsS --connect-timeout 5 --max-time 10 "${FRONTEND_HEALTHCHECK_URL}" > /dev/null; then
+              echo "Frontend is healthy."
+              exit 0
+            fi
+            sleep "${HEALTHCHECK_INTERVAL_SECONDS}"
+          done
+          echo "::error title=Frontend verify failed::Frontend health endpoint did not become healthy in time."
+          exit 1
