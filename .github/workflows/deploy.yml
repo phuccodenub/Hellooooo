@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - main
+    paths:
+      - .github/workflows/deploy.yml
+      - backend/**
+      - frontend/**
   workflow_dispatch:
     inputs:
       bump:
@@ -148,8 +152,6 @@ jobs:
           tags: |
             type=raw,value=${{ needs.prepare-version.outputs.version }}
             type=raw,value=latest
-            type=raw,value=main
-            type=sha,format=short
 
       - name: Show release version
         run: |
@@ -196,40 +198,106 @@ jobs:
       - create-tag
     runs-on: ubuntu-latest
     if: ${{ always() && needs.build-and-push.result == 'success' && (needs.create-tag.result == 'success' || needs.create-tag.result == 'skipped') }}
+    env:
+      DEPLOY_URL: ${{ secrets.DEPLOY_URL }}
+      ALLOW_EMPTY_REPLY: "true"
+      IMAGE_TAG: latest
     steps:
-      - name: Triển khai backend lên DevOps Classroom
+      - name: Validate deploy webhook secret
+        shell: bash
         run: |
+          set -euo pipefail
+          if [ -z "${DEPLOY_URL:-}" ]; then
+            echo "::error title=Missing secret DEPLOY_URL::Repository secret DEPLOY_URL is empty or unavailable. Go to Settings > Secrets and variables > Actions and create it with your deploy webhook URL."
+            exit 1
+          fi
+
+      - name: Trien khai backend len DevOps Classroom
+        shell: bash
+        run: |
+          set -euo pipefail
           REPO="phucdeptrai29/nguyensyphuc-backend"
-          RESPONSE=$(curl -sS -w "\n%{http_code}" -X POST "${{ secrets.DEPLOY_URL }}?repo=$REPO&tag=latest")
-          BODY=$(echo "$RESPONSE" | sed "$d")
-          CODE=$(echo "$RESPONSE" | tail -n1)
-          echo "Webhook HTTP: $CODE"
-          if [ "$CODE" -lt 200 ] || [ "$CODE" -ge 300 ]; then
-            echo "Deploy thất bại. Xem chi tiết trong nhóm log bên dưới."
-            echo "::group::Chi tiết webhook JSON"
-            echo "$BODY" | python3 -m json.tool 2>/dev/null || echo "$BODY"
-            echo "::endgroup::"
+          WEBHOOK_URL="${DEPLOY_URL}?repo=${REPO}&tag=${IMAGE_TAG}"
+
+          set +e
+          RESPONSE=$(curl --http1.1 --retry 3 --retry-all-errors --connect-timeout 10 --max-time 30 -sS -w "\n%{http_code}" -X POST -H "Content-Length: 0" "$WEBHOOK_URL")
+          CURL_EXIT=$?
+          set -e
+
+          if [ "$CURL_EXIT" -ne 0 ]; then
+            echo "curl exit code: $CURL_EXIT"
+            if [ "$CURL_EXIT" -eq 52 ] && [ "${ALLOW_EMPTY_REPLY}" = "true" ]; then
+              echo "Server closed connection without response body (curl 52)."
+              echo "Treating as success because webhook may be fire-and-forget."
+              exit 0
+            fi
+            echo "::error title=Webhook call failed::curl failed before receiving HTTP status from DEPLOY_URL."
             exit 1
           fi
-          echo "Deploy thành công."
-          echo "::group::Chi tiết webhook JSON"
+
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          CODE=$(echo "$RESPONSE" | tail -n1)
+
+          if ! [[ "$CODE" =~ ^[0-9]{3}$ ]]; then
+            echo "::error title=Invalid webhook response::Expected HTTP status code but got: $CODE"
+            echo "Raw response:"
+            echo "$RESPONSE"
+            exit 1
+          fi
+
+          echo "Webhook HTTP: $CODE"
+          echo "::group::Chi tiet webhook JSON"
           echo "$BODY" | python3 -m json.tool 2>/dev/null || echo "$BODY"
           echo "::endgroup::"
-      - name: Triển khai frontend lên DevOps Classroom
+
+          if [ "$CODE" -lt 200 ] || [ "$CODE" -ge 300 ]; then
+            echo "::error title=Deploy failed::Webhook returned non-2xx status: $CODE"
+            exit 1
+          fi
+
+          echo "Deploy thanh cong."
+
+      - name: Trien khai frontend len DevOps Classroom
+        shell: bash
         run: |
+          set -euo pipefail
           REPO="phucdeptrai29/nguyensyphuc-frontend"
-          RESPONSE=$(curl -sS -w "\n%{http_code}" -X POST "${{ secrets.DEPLOY_URL }}?repo=$REPO&tag=latest")
-          BODY=$(echo "$RESPONSE" | sed "$d")
-          CODE=$(echo "$RESPONSE" | tail -n1)
-          echo "Webhook HTTP: $CODE"
-          if [ "$CODE" -lt 200 ] || [ "$CODE" -ge 300 ]; then
-            echo "Deploy thất bại. Xem chi tiết trong nhóm log bên dưới."
-            echo "::group::Chi tiết webhook JSON"
-            echo "$BODY" | python3 -m json.tool 2>/dev/null || echo "$BODY"
-            echo "::endgroup::"
+          WEBHOOK_URL="${DEPLOY_URL}?repo=${REPO}&tag=${IMAGE_TAG}"
+
+          set +e
+          RESPONSE=$(curl --http1.1 --retry 3 --retry-all-errors --connect-timeout 10 --max-time 30 -sS -w "\n%{http_code}" -X POST -H "Content-Length: 0" "$WEBHOOK_URL")
+          CURL_EXIT=$?
+          set -e
+
+          if [ "$CURL_EXIT" -ne 0 ]; then
+            echo "curl exit code: $CURL_EXIT"
+            if [ "$CURL_EXIT" -eq 52 ] && [ "${ALLOW_EMPTY_REPLY}" = "true" ]; then
+              echo "Server closed connection without response body (curl 52)."
+              echo "Treating as success because webhook may be fire-and-forget."
+              exit 0
+            fi
+            echo "::error title=Webhook call failed::curl failed before receiving HTTP status from DEPLOY_URL."
             exit 1
           fi
-          echo "Deploy thành công."
-          echo "::group::Chi tiết webhook JSON"
+
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          CODE=$(echo "$RESPONSE" | tail -n1)
+
+          if ! [[ "$CODE" =~ ^[0-9]{3}$ ]]; then
+            echo "::error title=Invalid webhook response::Expected HTTP status code but got: $CODE"
+            echo "Raw response:"
+            echo "$RESPONSE"
+            exit 1
+          fi
+
+          echo "Webhook HTTP: $CODE"
+          echo "::group::Chi tiet webhook JSON"
           echo "$BODY" | python3 -m json.tool 2>/dev/null || echo "$BODY"
           echo "::endgroup::"
+
+          if [ "$CODE" -lt 200 ] || [ "$CODE" -ge 300 ]; then
+            echo "::error title=Deploy failed::Webhook returned non-2xx status: $CODE"
+            exit 1
+          fi
+
+          echo "Deploy thanh cong."
