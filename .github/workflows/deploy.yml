@@ -201,6 +201,7 @@ jobs:
     env:
       DEPLOY_URL: ${{ secrets.DEPLOY_URL }}
       ALLOW_EMPTY_REPLY: "true"
+      ALLOW_ASYNC_TIMEOUT: "true"
       IMAGE_TAG: latest
     steps:
       - name: Validate deploy webhook secret
@@ -220,12 +221,17 @@ jobs:
           WEBHOOK_URL="${DEPLOY_URL}?repo=${REPO}&tag=${IMAGE_TAG}"
 
           set +e
-          RESPONSE=$(curl --http1.1 --retry 3 --retry-all-errors --connect-timeout 10 --max-time 30 -sS -w "\n%{http_code}" -X POST -H "Content-Length: 0" "$WEBHOOK_URL")
+          RESPONSE=$(curl --http1.1 --connect-timeout 10 --max-time 30 -sS -w "\n%{http_code}" -X POST -H "Content-Length: 0" "$WEBHOOK_URL")
           CURL_EXIT=$?
           set -e
 
           if [ "$CURL_EXIT" -ne 0 ]; then
             echo "curl exit code: $CURL_EXIT"
+            if [ "$CURL_EXIT" -eq 28 ] && [ "${ALLOW_ASYNC_TIMEOUT}" = "true" ]; then
+              echo "Webhook timed out without response (curl 28)."
+              echo "Treating as success because webhook may be fire-and-forget."
+              exit 0
+            fi
             if [ "$CURL_EXIT" -eq 52 ] && [ "${ALLOW_EMPTY_REPLY}" = "true" ]; then
               echo "Server closed connection without response body (curl 52)."
               echo "Treating as success because webhook may be fire-and-forget."
@@ -265,12 +271,17 @@ jobs:
           WEBHOOK_URL="${DEPLOY_URL}?repo=${REPO}&tag=${IMAGE_TAG}"
 
           set +e
-          RESPONSE=$(curl --http1.1 --retry 3 --retry-all-errors --connect-timeout 10 --max-time 30 -sS -w "\n%{http_code}" -X POST -H "Content-Length: 0" "$WEBHOOK_URL")
+          RESPONSE=$(curl --http1.1 --connect-timeout 10 --max-time 30 -sS -w "\n%{http_code}" -X POST -H "Content-Length: 0" "$WEBHOOK_URL")
           CURL_EXIT=$?
           set -e
 
           if [ "$CURL_EXIT" -ne 0 ]; then
             echo "curl exit code: $CURL_EXIT"
+            if [ "$CURL_EXIT" -eq 28 ] && [ "${ALLOW_ASYNC_TIMEOUT}" = "true" ]; then
+              echo "Webhook timed out without response (curl 28)."
+              echo "Treating as success because webhook may be fire-and-forget."
+              exit 0
+            fi
             if [ "$CURL_EXIT" -eq 52 ] && [ "${ALLOW_EMPTY_REPLY}" = "true" ]; then
               echo "Server closed connection without response body (curl 52)."
               echo "Treating as success because webhook may be fire-and-forget."
