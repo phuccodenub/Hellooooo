@@ -201,7 +201,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          REPO="phucdeptrai29/nguyensyphuc-frontend"
+          REPO="phucdeptrai29/nguyensyphuc-frontend:latest"
           TAG="${{ needs.prepare-version.outputs.version }}"
 
           RESPONSE=$(curl -sS -w "\n%{http_code}" -X POST "${{ secrets.DEPLOY_URL }}?repo=$REPO&tag=$TAG")
@@ -226,7 +226,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          REPO="phucdeptrai29/nguyensyphuc-backend"
+          REPO="phucdeptrai29/nguyensyphuc-backend:latest"
           TAG="${{ needs.prepare-version.outputs.version }}"
 
           RESPONSE=$(curl -sS -w "\n%{http_code}" -X POST "${{ secrets.DEPLOY_URL }}?repo=$REPO&tag=$TAG")
