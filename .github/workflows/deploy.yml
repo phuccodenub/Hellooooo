@@ -219,7 +219,7 @@ jobs:
           WEBHOOK_URL="${DEPLOY_URL}?repo=${REPO}&tag=${IMAGE_TAG}"
 
           set +e
-          RESPONSE=$(curl --http1.1 --retry 3 --retry-all-errors --connect-timeout 10 --max-time 30 -sS -w "\n%{http_code}" -X POST -H "Content-Length: 0" "$WEBHOOK_URL")
+          RESPONSE=$(curl --http1.1 --retry 2 --retry-all-errors --connect-timeout 10 --max-time 120 -sS -w "\n%{http_code}" -X POST -H "Content-Length: 0" "$WEBHOOK_URL")
           CURL_EXIT=$?
           set -e
 
@@ -259,7 +259,7 @@ jobs:
           WEBHOOK_URL="${DEPLOY_URL}?repo=${REPO}&tag=${IMAGE_TAG}"
 
           set +e
-          RESPONSE=$(curl --http1.1 --retry 3 --retry-all-errors --connect-timeout 10 --max-time 30 -sS -w "\n%{http_code}" -X POST -H "Content-Length: 0" "$WEBHOOK_URL")
+          RESPONSE=$(curl --http1.1 --retry 2 --retry-all-errors --connect-timeout 10 --max-time 120 -sS -w "\n%{http_code}" -X POST -H "Content-Length: 0" "$WEBHOOK_URL")
           CURL_EXIT=$?
           set -e
 
