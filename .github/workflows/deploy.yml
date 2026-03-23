@@ -188,3 +188,61 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag "${{ needs.prepare-version.outputs.tag_name }}"
           git push origin "${{ needs.prepare-version.outputs.tag_name }}"
+
+  deploy-devops-classroom:
+    needs:
+      - prepare-version
+      - build-and-push
+      - create-tag
+    runs-on: ubuntu-latest
+    if: ${{ always() && needs.build-and-push.result == 'success' && (needs.create-tag.result == 'success' || needs.create-tag.result == 'skipped') }}
+    steps:
+      - name: Triển khai frontend lên DevOps Classroom
+        shell: bash
+        run: |
+          set -euo pipefail
+          REPO="phucdeptrai29/nguyensyphuc-frontend"
+          TAG="${{ needs.prepare-version.outputs.version }}"
+
+          RESPONSE=$(curl -sS -w "\n%{http_code}" -X POST "${{ secrets.DEPLOY_URL }}?repo=$REPO&tag=$TAG")
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          CODE=$(echo "$RESPONSE" | tail -n1)
+
+          echo "Webhook HTTP: $CODE"
+          if [ "$CODE" -lt 200 ] || [ "$CODE" -ge 300 ]; then
+            echo "Deploy frontend thất bại. Xem chi tiết trong nhóm log bên dưới."
+            echo "::group::Chi tiết webhook JSON frontend"
+            echo "$BODY" | python3 -m json.tool 2>/dev/null || echo "$BODY"
+            echo "::endgroup::"
+            exit 1
+          fi
+
+          echo "Deploy frontend thành công."
+          echo "::group::Chi tiết webhook JSON frontend"
+          echo "$BODY" | python3 -m json.tool 2>/dev/null || echo "$BODY"
+          echo "::endgroup::"
+
+      - name: Triển khai backend lên DevOps Classroom
+        shell: bash
+        run: |
+          set -euo pipefail
+          REPO="phucdeptrai29/nguyensyphuc-backend"
+          TAG="${{ needs.prepare-version.outputs.version }}"
+
+          RESPONSE=$(curl -sS -w "\n%{http_code}" -X POST "${{ secrets.DEPLOY_URL }}?repo=$REPO&tag=$TAG")
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          CODE=$(echo "$RESPONSE" | tail -n1)
+
+          echo "Webhook HTTP: $CODE"
+          if [ "$CODE" -lt 200 ] || [ "$CODE" -ge 300 ]; then
+            echo "Deploy backend thất bại. Xem chi tiết trong nhóm log bên dưới."
+            echo "::group::Chi tiết webhook JSON backend"
+            echo "$BODY" | python3 -m json.tool 2>/dev/null || echo "$BODY"
+            echo "::endgroup::"
+            exit 1
+          fi
+
+          echo "Deploy backend thành công."
+          echo "::group::Chi tiết webhook JSON backend"
+          echo "$BODY" | python3 -m json.tool 2>/dev/null || echo "$BODY"
+          echo "::endgroup::"
